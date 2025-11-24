@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import List, Tuple
 
 from ethercat_bus import FakeEtherCATBus, create_bus
+from log_buffer import LogBuffer
 
 
 @dataclass
@@ -22,9 +23,15 @@ class PistonClient:
     HMI master'dan gelen komutları uygular.
     """
 
-    def __init__(self, bus: FakeEtherCATBus, slave_id: str = "piston-client") -> None:
+    def __init__(
+        self,
+        bus: FakeEtherCATBus,
+        slave_id: str = "piston-client",
+        logger: LogBuffer | None = None,
+    ) -> None:
         self.bus = bus
         self.slave_id = slave_id
+        self.logger = logger
         self.latched = False
         self.running = False
         self.durations = DEFAULT_DURATIONS.copy()
@@ -52,11 +59,13 @@ class PistonClient:
             self._apply_durations(durations)
             self.latched = bool(cmd.get("latched", True))
             self._start_cycle()
+            self._log(f"Start komutu alındı (latch={'açık' if self.latched else 'kapalı'}).")
         elif ctype == "single":
             durations = cmd.get("durations") or self.durations
             self._apply_durations(durations)
             self.latched = False
             self._start_cycle()
+            self._log("Tek döngü komutu alındı.")
         elif ctype == "stop":
             self.latched = False
             self.running = False
@@ -70,6 +79,7 @@ class PistonClient:
                 remaining_ms=0,
                 message="Stop komutu alındı.",
             )
+            self._log("Stop komutu alındı, sekans durduruldu.")
 
     def _apply_durations(self, durations: List[Tuple[float, float]]) -> None:
         clean = []
@@ -98,13 +108,14 @@ class PistonClient:
                 message="Sekans boş.",
             )
             return
-        self._publish_state(
-            status="running",
-            direction=self.sequence[0].action,
-            active_piston=self.sequence[0].piston_index,
-            remaining_ms=self.sequence[0].duration_ms,
-            message="Döngü başlatıldı.",
-        )
+            self._publish_state(
+                status="running",
+                direction=self.sequence[0].action,
+                active_piston=self.sequence[0].piston_index,
+                remaining_ms=self.sequence[0].duration_ms,
+                message="Döngü başlatıldı.",
+            )
+        self._log("Sekans başlatıldı.")
 
     def _build_sequence(self) -> List[Stage]:
         result: List[Stage] = []
@@ -166,6 +177,10 @@ class PistonClient:
                 active_piston=next_stage.piston_index,
                 remaining_ms=next_stage.duration_ms,
             )
+            self._log(
+                f"Piston {next_stage.piston_index + 1} "
+                f"{'ileri' if next_stage.action == 'extend' else 'geri'} hareketine geçti."
+            )
 
     def _publish_state(
         self,
@@ -190,6 +205,8 @@ class PistonClient:
         if message:
             state["message"] = message
         self.bus.write_slave_state(self.slave_id, state)
+        if message:
+            self._log(message)
 
     def _calculate_remaining_ms(self) -> int:
         if not self.running or self.stage_index >= len(self.sequence):
@@ -197,6 +214,10 @@ class PistonClient:
         stage = self.sequence[self.stage_index]
         elapsed_ms = (time.monotonic() - self.stage_started_at) * 1000
         return max(0, int(stage.duration_ms - elapsed_ms))
+
+    def _log(self, message: str) -> None:
+        if self.logger:
+            self.logger.add(message)
 
 
 def run_demo() -> None:

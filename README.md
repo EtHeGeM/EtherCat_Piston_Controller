@@ -23,6 +23,13 @@ pip install -r requirements.txt
 - HMI açıldığında client otomatik devreye girer ve EtherCAT bus üzerinden komutları dinler.
 - `piston_client.py` client kodunu ayrı olarak incelemek/çalıştırmak için kullanılabilir; Fake bus in-memory olduğundan gerçek iletişim için aynı proses veya gerçek EtherCAT kurulumu gerekir.
 
+## Streamlit arayüzü
+- GUI yerine web tabanlı arayüz için:
+  ```bash
+  streamlit run streamlit_app.py
+  ```
+- Start/Stop/Tek döngü komutlarını ve piston sürelerini kontrol edebilir, server ve client loglarını aynı ekranda takip edebilirsiniz.
+
 ## Gerçek EtherCAT'e uyarlama
 - `ethercat_bus.create_bus(interface_name)` fonksiyonunda pysoem ekran kartı/master kurulumu eklenebilir. Arayüz adı verilerek gerçek master devreye alındığında HMI tarafı yine `create_bus()` ile aynı API üzerinden komut yazar/okur.
 
