@@ -3,12 +3,12 @@ from tkinter import ttk
 from typing import List, Tuple
 import time
 
-from ethercat_bus import create_bus
-from piston_client import DEFAULT_DURATIONS, PistonClient
+from .ethercat_bus import create_bus
+from .piston_client import DEFAULT_DURATIONS, PistonClient
 
 
 class SignalGraph:
-    """Basit canlı sinyal izleme grafiği (step plot)."""
+    """Lightweight live signal monitor (step plot)."""
 
     def __init__(
         self,
@@ -25,7 +25,7 @@ class SignalGraph:
         self.history: dict[str, list[tuple[float, bool]]] = {name: [] for name, _ in signals}
         self.label_pad = 90
 
-        frame = ttk.LabelFrame(parent, text="Sinyal İzleyici (Son 20 sn)")
+        frame = ttk.LabelFrame(parent, text="Signal Monitor (last 20s)")
         frame.pack(fill="both", expand=False, padx=4, pady=8)
         self.canvas = tk.Canvas(frame, width=width, height=height, bg="#0b1021", highlightthickness=1, highlightbackground="#334155")
         self.canvas.pack(fill="both", expand=True)
@@ -87,12 +87,12 @@ class SignalGraph:
 
 class HMIServer:
     """
-    EtherCAT master tarafı: HMI üzerinden komut gönderir, client durumlarını okur.
+    EtherCAT master side: send commands from HMI, read client states.
     """
 
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Hidrolik Piston HMI (EtherCAT Server)")
+        self.root.title("Hydraulic Piston HMI (EtherCAT Server)")
         self.bus = create_bus()
         self.slave_id = "piston-client"
         self.client = PistonClient(self.bus, slave_id=self.slave_id)
@@ -113,16 +113,16 @@ class HMIServer:
 
         title = ttk.Label(
             root,
-            text="3 Pistonlu Hidrolik Simülasyon (EtherCAT Master/HMI)",
+            text="3-Piston Hydraulic Simulation (EtherCAT Master/HMI)",
             font=("Segoe UI", 14, "bold"),
         )
         title.pack(pady=(0, 10))
 
         # Timing configuration panel
-        config_frame = ttk.LabelFrame(root, text="Süre Ayarları (saniye)")
+        config_frame = ttk.LabelFrame(root, text="Duration Settings (seconds)")
         config_frame.pack(fill="x", padx=4, pady=4)
 
-        header = ["Piston", "Uzatma", "Geri Çekme", "Durum", "Geri Sayım"]
+        header = ["Piston", "Extend", "Retract", "State", "Countdown"]
         for col, text in enumerate(header):
             ttk.Label(config_frame, text=text, font=("Segoe UI", 10, "bold")).grid(
                 row=0, column=col, padx=6, pady=6, sticky="w"
@@ -132,7 +132,7 @@ class HMIServer:
             extend_default, retract_default = DEFAULT_DURATIONS[idx]
             extend_var = tk.DoubleVar(value=extend_default)
             retract_var = tk.DoubleVar(value=retract_default)
-            state_var = tk.StringVar(value="Beklemede")
+            state_var = tk.StringVar(value="Idle")
             timer_var = tk.StringVar(value="-")
 
             ttk.Label(config_frame, text=f"Piston {idx + 1}").grid(
@@ -205,7 +205,7 @@ class HMIServer:
 
         self.latch_indicator = tk.Label(
             control_frame,
-            text="Latching: Kapalı",
+            text="Latching: Off",
             width=16,
             bg="#f44336",
             fg="white",
@@ -220,14 +220,14 @@ class HMIServer:
         stop_btn.pack(side="left", padx=6)
 
         single_btn = ttk.Button(
-            control_frame, text="Tek Döngü", command=self.single_cycle
+            control_frame, text="Single Cycle", command=self.single_cycle
         )
         single_btn.pack(side="left", padx=6)
 
-        reset_btn = ttk.Button(control_frame, text="Varsayılan Süreler", command=self._reset_times)
+        reset_btn = ttk.Button(control_frame, text="Reset Durations", command=self._reset_times)
         reset_btn.pack(side="left", padx=6)
 
-        self.status_var = tk.StringVar(value="Hazır")
+        self.status_var = tk.StringVar(value="Ready")
         status_label = ttk.Label(
             root, textvariable=self.status_var, background="#eef3ff", padding=(8, 4)
         )
@@ -269,34 +269,34 @@ class HMIServer:
             extend_default, retract_default = DEFAULT_DURATIONS[idx]
             piston["extend_var"].set(extend_default)
             piston["retract_var"].set(retract_default)
-        self._log("Süreler varsayılanlara döndürüldü.")
+        self._log("Durations reset to defaults.")
 
     def _reset_states(self) -> None:
         for piston in self.pistons:
-            piston["state_var"].set("Beklemede")
+            piston["state_var"].set("Idle")
             piston["state_label"].configure(bg="#d9d9d9")
             piston["timer_var"].set("-")
 
     def _set_latch_indicator(self, latched: bool) -> None:
         if latched:
-            self.latch_indicator.configure(text="Latching: Açık", bg="#4caf50")
+            self.latch_indicator.configure(text="Latching: On", bg="#4caf50")
         else:
-            self.latch_indicator.configure(text="Latching: Kapalı", bg="#f44336")
+            self.latch_indicator.configure(text="Latching: Off", bg="#f44336")
 
     def start(self) -> None:
         durations = self._collect_durations()
         self.bus.write_master_command(
             self.slave_id, {"type": "start", "latched": True, "durations": durations}
         )
-        self.status_var.set("Start komutu gönderildi (latching açık).")
-        self._log("Start: Latching komutu EtherCAT üzerinden gönderildi.")
+        self.status_var.set("Start command sent (latched).")
+        self._log("Start: latched command sent over EtherCAT.")
         self._set_latch_indicator(True)
         self._pulse_flags["start_cmd"] = True
 
     def stop(self) -> None:
         self.bus.write_master_command(self.slave_id, {"type": "stop"})
-        self.status_var.set("Stop komutu gönderildi.")
-        self._log("Stop komutu EtherCAT üzerinden gönderildi.")
+        self.status_var.set("Stop command sent.")
+        self._log("Stop command sent over EtherCAT.")
         self._set_latch_indicator(False)
         self._pulse_flags["stop_cmd"] = True
 
@@ -305,8 +305,8 @@ class HMIServer:
         self.bus.write_master_command(
             self.slave_id, {"type": "single", "durations": durations}
         )
-        self.status_var.set("Tek döngü komutu gönderildi (latching kapalı).")
-        self._log("Tek döngü komutu EtherCAT üzerinden gönderildi.")
+        self.status_var.set("Single-cycle command sent (not latched).")
+        self._log("Single-cycle command sent over EtherCAT.")
         self._set_latch_indicator(False)
         self._pulse_flags["start_cmd"] = True
 
@@ -322,7 +322,7 @@ class HMIServer:
         remaining_ms = state.get("remaining_ms", None)
 
         if status != self.last_status or message:
-            self.status_var.set(message or f"Durum: {status}")
+            self.status_var.set(message or f"Status: {status}")
             if status != self.last_status and status:
                 self._log(f"State: {status}")
             if message:
@@ -334,11 +334,11 @@ class HMIServer:
             for idx, piston in enumerate(self.pistons):
                 if idx == active:
                     color = "#4caf50" if direction == "extend" else "#ff9800"
-                    piston["state_var"].set("Ileri" if direction == "extend" else "Geri")
+                    piston["state_var"].set("Extend" if direction == "extend" else "Retract")
                     piston["state_label"].configure(bg=color)
                     piston["timer_var"].set(self._format_remaining(remaining_ms))
                 else:
-                    piston["state_var"].set("Beklemede")
+                    piston["state_var"].set("Idle")
                     piston["state_label"].configure(bg="#d9d9d9")
                     piston["timer_var"].set("-")
         else:
@@ -364,7 +364,7 @@ class HMIServer:
             "p3_active": active == 2 and running,
         }
         self.signal_graph.update(signals)
-        # Pulse temizliği
+        # Pulse cleanup
         self._pulse_flags["start_cmd"] = False
         self._pulse_flags["stop_cmd"] = False
 
@@ -374,7 +374,7 @@ class HMIServer:
             return "-"
         seconds = remaining_ms / 1000
         if seconds >= 1:
-            return f"{seconds:0.1f} sn"
+            return f"{seconds:0.1f} s"
         return f"{remaining_ms} ms"
 
 

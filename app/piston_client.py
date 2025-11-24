@@ -3,8 +3,8 @@ import time
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from ethercat_bus import FakeEtherCATBus, create_bus
-from log_buffer import LogBuffer
+from .ethercat_bus import FakeEtherCATBus, create_bus
+from .log_buffer import LogBuffer
 
 
 @dataclass
@@ -19,8 +19,7 @@ DEFAULT_DURATIONS: List[Tuple[float, float]] = [(1.5, 1.0), (2.0, 1.0), (2.5, 1.
 
 class PistonClient:
     """
-    EtherCAT üzerindeki slave (client) tarafı: piston hareketlerini yönetir,
-    HMI master'dan gelen komutları uygular.
+    EtherCAT-like slave (client): manages piston moves, applies commands from HMI master.
     """
 
     def __init__(
@@ -59,13 +58,13 @@ class PistonClient:
             self._apply_durations(durations)
             self.latched = bool(cmd.get("latched", True))
             self._start_cycle()
-            self._log(f"Start komutu alındı (latch={'açık' if self.latched else 'kapalı'}).")
+            self._log(f"Start command received (latched={'on' if self.latched else 'off'}).")
         elif ctype == "single":
             durations = cmd.get("durations") or self.durations
             self._apply_durations(durations)
             self.latched = False
             self._start_cycle()
-            self._log("Tek döngü komutu alındı.")
+            self._log("Single-cycle command received.")
         elif ctype == "stop":
             self.latched = False
             self.running = False
@@ -77,9 +76,9 @@ class PistonClient:
                 direction=None,
                 active_piston=None,
                 remaining_ms=0,
-                message="Stop komutu alındı.",
+                message="Stop command received.",
             )
-            self._log("Stop komutu alındı, sekans durduruldu.")
+            self._log("Stop command received; sequence halted.")
 
     def _apply_durations(self, durations: List[Tuple[float, float]]) -> None:
         clean = []
@@ -105,17 +104,17 @@ class PistonClient:
                 direction=None,
                 active_piston=None,
                 remaining_ms=0,
-                message="Sekans boş.",
+                message="Sequence empty.",
             )
             return
-            self._publish_state(
-                status="running",
-                direction=self.sequence[0].action,
-                active_piston=self.sequence[0].piston_index,
-                remaining_ms=self.sequence[0].duration_ms,
-                message="Döngü başlatıldı.",
-            )
-        self._log("Sekans başlatıldı.")
+        self._publish_state(
+            status="running",
+            direction=self.sequence[0].action,
+            active_piston=self.sequence[0].piston_index,
+            remaining_ms=self.sequence[0].duration_ms,
+            message="Cycle started.",
+        )
+        self._log("Sequence started.")
 
     def _build_sequence(self) -> List[Stage]:
         result: List[Stage] = []
@@ -145,7 +144,7 @@ class PistonClient:
                 direction=None,
                 active_piston=None,
                 remaining_ms=0,
-                message="Döngü tamamlandı.",
+                message="Cycle complete.",
             )
             if self.latched:
                 self._next_cycle_at = now + 0.5
@@ -163,7 +162,7 @@ class PistonClient:
                     direction=None,
                     active_piston=None,
                     remaining_ms=0,
-                    message="Döngü tamamlandı.",
+                    message="Cycle complete.",
                 )
                 if self.latched:
                     self._next_cycle_at = now + 0.5
@@ -179,7 +178,7 @@ class PistonClient:
             )
             self._log(
                 f"Piston {next_stage.piston_index + 1} "
-                f"{'ileri' if next_stage.action == 'extend' else 'geri'} hareketine geçti."
+                f"{'extend' if next_stage.action == 'extend' else 'retract'} phase."
             )
 
     def _publish_state(
@@ -222,12 +221,11 @@ class PistonClient:
 
 def run_demo() -> None:
     """
-    Başka bir terminalden master/HMI çalıştırırken shared FakeEtherCATBus
-    üzerinde piston client'ı başlatmak için kullanılabilir.
+    Launch piston client on shared FakeEtherCATBus; start master/HMI separately.
     """
     bus = create_bus()
     PistonClient(bus)
-    print("Piston client açık. Çıkmak için Ctrl+C.")
+    print("Piston client running. Press Ctrl+C to exit.")
     try:
         while True:
             time.sleep(1)

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hydraulic Piston HMI — Technical Deep Dive</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #050910;
+      --fg: #eaf2ff;
+      --muted: #c8d3f3;
+      --card: rgba(255, 255, 255, 0.04);
+      --accent: #1de9b6;
+      --accent-2: #ffb74d;
+      --code: #aee8ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+      background: radial-gradient(120% 120% at 20% 15%, rgba(29,233,182,0.12), transparent),
+                  radial-gradient(120% 120% at 85% 0%, rgba(255,183,77,0.12), transparent),
+                  linear-gradient(135deg, #050910, #0c1836);
+      color: var(--fg);
+      padding: 24px 18px 60px;
+    }
+    header { max-width: 1180px; margin: 0 auto 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .chip { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.05); color: var(--muted); font-size: 13px; }
+    h1 { margin: 0; font-size: clamp(30px, 5vw, 42px); }
+    h2 { margin: 0 0 10px; }
+    p { margin: 0 0 10px; color: var(--muted); line-height: 1.6; }
+    .grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+    .card { background: var(--card); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.12); }
+    ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.6; }
+    li strong { color: var(--fg); }
+    pre { margin: 0; padding: 12px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: var(--code); font-family: 'Fira Code', monospace; font-size: 13px; overflow-x: auto; }
+    .tag { display: inline-block; padding: 3px 8px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-size: 12px; margin-right: 6px; }
+    a.btn { display: inline-block; padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: linear-gradient(120deg, var(--accent), #5efce8); color: #051020; font-weight: 700; text-decoration: none; margin-right: 8px; }
+    a.btn.secondary { background: transparent; color: var(--fg); border-color: rgba(255,255,255,0.14); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Hydraulic Piston HMI — Technical Deep Dive</h1>
+    <span class="chip">Master/Slave · Fake EtherCAT bus · Python</span>
+    <a class="btn secondary" href="presentation.html">Back to deck</a>
+    <a class="btn" href="interactive-3d.html" target="_blank">Open 3D</a>
+    <a class="btn secondary" href="index.html">Back to index</a>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Master (HMI) responsibilities</h2>
+      <ul>
+        <li><strong>Collect durations</strong> via UI controls (Tkinter spinbox or Streamlit form).</li>
+        <li><strong>Send commands</strong> with <code>write_master_command(slave_id, payload)</code> (start, single, stop).</li>
+        <li><strong>Poll state</strong> with <code>read_slave_state(slave_id)</code>; update widgets and status indicators.</li>
+        <li><strong>Log</strong> outgoing commands and incoming messages into <code>LogBuffer</code> or Tkinter text box.</li>
+      </ul>
+      <pre># main.py (Tkinter) start handler
+durations = collect_spinbox_values()
+bus.write_master_command("piston-client", {
+  "type": "start", "latched": True, "durations": durations
+})
+status_var.set("Start (latched)")
+</pre>
+    </div>
+
+    <div class="card">
+      <h2>Slave (piston client) loop</h2>
+      <ul>
+        <li><strong>Loop @10ms</strong>: read pending command, advance current stage, publish state.</li>
+        <li><strong>Apply durations</strong>: clamp/clean values, build stage list: extend + retract for each piston.</li>
+        <li><strong>State publish</strong>: status, active piston, direction, remaining ms, latch, cycle count, message.</li>
+        <li><strong>Latch behavior</strong>: on completion, if <code>latched</code>, schedule next start after 0.5 s.</li>
+      </ul>
+      <pre># piston_client.py (core loop)
+while True:
+    handle_commands()
+    process_cycle()  # extend/retract sequencing, remaining_ms calc
+    time.sleep(0.01)
+</pre>
+    </div>
+
+    <div class="card">
+      <h2>Fake EtherCAT bus</h2>
+      <p>Thread-safe in-memory mailbox: master writes commands, client reads; client writes state, master reads.</p>
+      <pre># ethercat_bus.py
+class FakeEtherCATBus:
+    def write_master_command(self, slave_id, cmd):
+        with self._lock:
+            self._command_mailbox[slave_id] = cmd
+    def pop_slave_command(self, slave_id):
+        with self._lock:
+            return self._command_mailbox.pop(slave_id, None)
+    def write_slave_state(self, slave_id, state):
+        with self._lock:
+            self._state_mailbox[slave_id] = state
+    def read_slave_state(self, slave_id):
+        with self._lock:
+            data = self._state_mailbox.get(slave_id)
+            return dict(data) if data else None
+</pre>
+    </div>
+
+    <div class="card">
+      <h2>Piston sequencing</h2>
+      <p>Each piston has two stages: extend (ms) then retract (ms). Sequence is flattened and advanced in order.</p>
+      <pre># build sequence
+for idx, (extend_s, retract_s) in enumerate(durations):
+    seq.append(Stage(idx, "extend", int(extend_s * 1000)))
+    seq.append(Stage(idx, "retract", int(retract_s * 1000)))
+
+# advance stage
+elapsed_ms = (now - stage_started_at) * 1000
+if elapsed_ms >= stage.duration_ms:
+    stage_index += 1
+    publish_state(status="running", active_piston=next_idx, direction=next_dir)
+</pre>
+    </div>
+
+    <div class="card">
+      <h2>Master vs. Slave behavior</h2>
+      <ul>
+        <li><strong>Master</strong>: stateless between polls; sends commands on button press; UI-driven.</li>
+        <li><strong>Slave</strong>: stateful sequence executor; holds latch flag, cycle count, stage index.</li>
+        <li><strong>Error handling</strong>: invalid durations are sanitized; empty sequence publishes stopped state.</li>
+        <li><strong>Timing</strong>: safeguards minimum 50 ms per stage; remaining_ms is clamped to non-negative.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Streamlit HMI flow</h2>
+      <pre># streamlit_app.py
+durations = get_current_durations()
+if start_clicked:
+    bus.write_master_command(SLAVE_ID, {
+      "type": "start", "latched": True, "durations": durations
+    })
+# read state every refresh
+state = bus.read_slave_state(SLAVE_ID) or {}
+render_state_panel(state)
+</pre>
+      <p>Server and client logs are shown via <code>LogBuffer</code> text areas; auto-refresh every 0.5s.</p>
+    </div>
+
+    <div class="card">
+      <h2>How to run (LAN/localhost)</h2>
+      <ul>
+        <li><strong>Node static server</strong>: <code>npm start</code> (serves web/ at 0.0.0.0:3000).</li>
+        <li><strong>Presentation</strong>: <code>http://&lt;host&gt;:3000/presentation.html</code></li>
+        <li><strong>3D view</strong>: <code>http://&lt;host&gt;:3000/interactive-3d.html</code> (local Three.js).</li>
+        <li><strong>Landing</strong>: <code>http://&lt;host&gt;:3000/index.html</code></li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

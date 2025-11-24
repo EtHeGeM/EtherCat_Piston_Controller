@@ -7,7 +7,7 @@ from typing import List
 
 
 class LogBuffer:
-    """Thread-safe sınırlı log tamponu."""
+    """Thread-safe bounded log buffer."""
 
     def __init__(self, max_entries: int = 300) -> None:
         self.max_entries = max_entries

@@ -1,9 +1,8 @@
 """
-Basit EtherCAT benzeri haberleşme katmanı.
+Lightweight EtherCAT-like communication layer.
 
-Gerçek bir EtherCAT master/slave altyapısı için pysoem kullanılabilir.
-Bu örnekte demo amacıyla komut ve durumları paylaşımlı hafızada
-saklayan FakeEtherCATBus sınıfı eklenmiştir.
+For real EtherCAT master/slave, pysoem could be used. This demo ships
+FakeEtherCATBus to share commands/states in-memory.
 """
 
 from __future__ import annotations
@@ -19,8 +18,8 @@ except Exception:  # pragma: no cover - pysoem opsiyonel
 
 class FakeEtherCATBus:
     """
-    İn-memory, thread-safe, EtherCAT benzeri bir master/slave posta kutusu.
-    Master komut yazar, client (slave) okur. Client durum yazar, master okur.
+    In-memory, thread-safe master/slave mailbox.
+    Master writes commands, client reads; client writes state, master reads.
     """
 
     def __init__(self) -> None:
@@ -46,20 +45,20 @@ class FakeEtherCATBus:
             return dict(data) if data else None
 
 
-# Demo varsayılanı: aynı proses içinde paylaşılacak bus
+# Demo default: shared bus within the same process
 LOCAL_FAKE_BUS = FakeEtherCATBus()
 
 
 def create_bus(interface_name: str | None = None) -> FakeEtherCATBus:
     """
-    pysoem kullanılabilir durumda ve gerçek arayüz ismi verilmişse burada
-    master kurulumu yapılabilir. Demo için FakeEtherCATBus döndürülür.
+    If pysoem + real interface provided, real master init could happen here.
+    For demo, returns FakeEtherCATBus.
     """
     if interface_name:
         if pysoem is None:
-            raise RuntimeError("Gerçek EtherCAT için pysoem gerekli fakat yüklü değil.")
+            raise RuntimeError("pysoem is required for real EtherCAT but not installed.")
         raise NotImplementedError(
-            "pysoem ile gerçek EtherCAT master kurulumu bu örnekte stub. "
-            "interface_name vermeden FakeEtherCATBus ile devam edebilirsiniz."
+            "Real EtherCAT master setup with pysoem is stubbed in this example. "
+            "Call create_bus() without interface_name to use FakeEtherCATBus."
         )
     return LOCAL_FAKE_BUS

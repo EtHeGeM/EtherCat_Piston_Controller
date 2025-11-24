@@ -1,0 +1,17 @@
+{
+  "name": "hidrolik-piston-hmi",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Static server and hydraulic piston HMI presentation for local/LAN use",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.181.2"
+  }
+}

@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hydraulic Piston HMI — Tech Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #050a1a;
+      --bg-2: #0e1835;
+      --card: rgba(255, 255, 255, 0.05);
+      --accent: #1de9b6;
+      --accent-2: #ffb74d;
+      --text: #ecf2ff;
+      --muted: #cfd6f5;
+      --code: #9ddcff;
+      --shadow: 0 12px 40px rgba(0,0,0,0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+      background: radial-gradient(120% 140% at 16% 12%, rgba(29,233,182,0.15), transparent),
+                  radial-gradient(100% 100% at 82% 6%, rgba(255,183,77,0.12), transparent),
+                  linear-gradient(135deg, var(--bg), var(--bg-2));
+      color: var(--text);
+      min-height: 100vh;
+      overflow: hidden;
+      padding: 20px;
+    }
+    .frame {
+      max-width: 1200px;
+      height: calc(100vh - 40px);
+      margin: 0 auto;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 14px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand { font-weight: 700; letter-spacing: 0.4px; color: var(--accent); text-transform: uppercase; }
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .deck {
+      position: relative;
+      background: linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+    }
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 28px 32px;
+      opacity: 0;
+      transform: translateY(18px) scale(0.98);
+      transition: opacity 220ms ease, transform 260ms ease;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      align-items: center;
+    }
+    .slide.active {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+    h1 { margin: 0 0 10px; font-size: clamp(26px, 4vw, 36px); }
+    h2 { margin: 0 0 12px; }
+    p { margin: 0 0 12px; color: var(--muted); line-height: 1.6; }
+    ul { margin: 0; padding-left: 20px; color: var(--muted); line-height: 1.6; }
+    li strong { color: var(--text); }
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+    }
+    .inline-code {
+      font-family: 'Fira Code', monospace;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      color: var(--code);
+    }
+    pre {
+      margin: 0;
+      padding: 14px;
+      background: rgba(0,0,0,0.45);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      font-family: 'Fira Code', monospace;
+      color: #b8f1ff;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: linear-gradient(120deg, var(--accent), #5efce8);
+      color: #051020;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform 160ms ease;
+    }
+    .btn.secondary {
+      background: transparent;
+      color: var(--text);
+      box-shadow: none;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .progress {
+      flex: 1;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .progress > div {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 200ms ease;
+    }
+    /* Animated visual */
+    .scene {
+      position: relative;
+      height: 320px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: radial-gradient(120% 120% at 40% 10%, rgba(29,233,182,0.25), rgba(29,233,182,0)),
+                  linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .grid {
+      position: absolute;
+      inset: 0;
+      background-size: 28px 28px;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,1));
+    }
+    .bus {
+      position: absolute;
+      left: 50%;
+      top: 34px;
+      transform: translateX(-50%);
+      width: 72%;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(120deg, rgba(255,183,77,0.3), rgba(29,233,182,0.5));
+      border: 1px solid rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+      color: #0b142b;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      box-shadow: 0 12px 26px rgba(0,0,0,0.35);
+    }
+    .bus-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #1de9b6;
+      box-shadow: 0 0 0 0 rgba(29,233,182,0.45);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    .spark {
+      position: absolute;
+      top: 70px;
+      left: 16%;
+      width: 7px;
+      height: 7px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow:
+        140px 4px 0 rgba(255, 183, 77, 0.5),
+        280px -6px 0 rgba(29, 233, 182, 0.55),
+        430px 2px 0 rgba(92, 111, 255, 0.55);
+      filter: blur(0.6px);
+      animation: travel 3.6s linear infinite;
+      opacity: 0.8;
+    }
+    .piston-row {
+      position: absolute;
+      bottom: 26px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 82%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    .piston {
+      position: relative;
+      height: 200px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .piston .track {
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      width: 24px;
+      height: calc(100% - 54px);
+      transform: translateX(-50%);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(205,213,245,0.3), rgba(205,213,245,0.12));
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .piston .head {
+      position: absolute;
+      left: 50%;
+      width: 88px;
+      height: 48px;
+      transform: translate(-50%, 0);
+      border-radius: 14px;
+      background: linear-gradient(120deg, rgba(29,233,182,0.9), rgba(2,178,149,0.9));
+      box-shadow: 0 10px 22px rgba(29,233,182,0.35);
+      animation: move 4.4s ease-in-out infinite;
+    }
+    .piston .head:after {
+      content: "";
+      position: absolute;
+      bottom: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 16px;
+      height: 14px;
+      background: #111a33;
+      border-radius: 0 0 10px 10px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+    }
+    .piston:nth-child(2) .head { background: linear-gradient(120deg, #ffb74d, #ff8f00); animation-duration: 5.0s; }
+    .piston:nth-child(3) .head { background: linear-gradient(120deg, #5c6fff, #3f51b5); animation-duration: 4.0s; }
+
+    /* Demo panel */
+    .demo-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+    .demo-buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .pulse {
+      position: relative;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.14);
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 160ms ease;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .pulse.active {
+      box-shadow: 0 0 0 0 rgba(29,233,182,0.4);
+      animation: pulseBtn 1s ease-out;
+      border-color: rgba(29,233,182,0.7);
+      color: #051020;
+      background: linear-gradient(120deg, var(--accent), #5efce8);
+    }
+    @keyframes pulseBtn {
+      0% { box-shadow: 0 0 0 0 rgba(29,233,182,0.45); }
+      70% { box-shadow: 0 0 0 18px rgba(29,233,182,0); }
+      100% { box-shadow: 0 0 0 0 rgba(29,233,182,0); }
+    }
+    .code-box {
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-family: 'Fira Code', monospace;
+      color: #b8f1ff;
+      font-size: 13px;
+      min-height: 96px;
+      white-space: pre-wrap;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    @keyframes move {
+      0%   { top: 12px; }
+      22%  { top: 32%; }
+      55%  { top: 80%; }
+      82%  { top: 28%; }
+      100% { top: 12px; }
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(29,233,182,0.4); }
+      60% { box-shadow: 0 0 0 12px rgba(29,233,182,0); }
+      100% { box-shadow: 0 0 0 0 rgba(29,233,182,0); }
+    }
+    @keyframes travel {
+      0% { transform: translateX(0); opacity: 0.3; }
+      15% { opacity: 0.9; }
+      50% { opacity: 0.6; }
+      100% { transform: translateX(430px); opacity: 0; }
+    }
+    @media (max-width: 860px) {
+      body { padding: 12px; }
+      .frame { height: auto; }
+      .deck { min-height: 700px; }
+      .slide { position: relative; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <header>
+      <div class="brand">Hydraulic Piston HMI</div>
+      <div class="pill">Tech walkthrough · arrow keys or buttons</div>
+      <a class="btn secondary" href="index.html" style="margin-left:auto;">Back to index</a>
+    </header>
+
+    <div class="deck" id="deck">
+      <div class="slide active">
+        <div>
+          <h1>System architecture</h1>
+          <p>Three hydraulic pistons simulated with an HMI (master) and piston client (slave) communicating over a Fake EtherCAT-style bus.</p>
+          <ul>
+            <li><strong>HMI / Server</strong>: Tkinter or Streamlit UI to send start/single/stop and timing values.</li>
+            <li><strong>Piston Client</strong>: Consumes commands, runs extend/retract sequence, publishes state.</li>
+            <li><strong>Fake EtherCAT Bus</strong>: Thread-safe mailbox for commands and states.</li>
+            <li><strong>LogBuffer</strong>: Collects server/client messages; shown side-by-side on the web HMI.</li>
+          </ul>
+          <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+            <a class="btn" href="interactive-3d.html" target="_blank" rel="noreferrer">Open 3D animation</a>
+            <a class="btn secondary" href="index.html" target="_blank" rel="noreferrer">Landing page</a>
+          </div>
+        </div>
+        <div class="scene">
+          <div class="grid"></div>
+          <div class="spark"></div>
+          <div class="bus">
+            <div class="bus-dot"></div>
+            Fake EtherCAT Bus
+          </div>
+          <div class="piston-row">
+            <div class="piston">
+              <div class="track"></div>
+              <div class="head"></div>
+            </div>
+            <div class="piston">
+              <div class="track"></div>
+              <div class="head"></div>
+            </div>
+            <div class="piston">
+              <div class="track"></div>
+              <div class="head"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide">
+        <div>
+          <h1>Communication protocol</h1>
+          <p>Commands flow master → slave, state flows slave → master; JSON-like dicts over the Fake EtherCAT bus.</p>
+          <pre>{
+  "type": "start",          // start | single | stop
+  "latched": true,          // auto-repeat after completion
+  "durations": [[1.5,1.0],[2.0,1.0],[2.5,1.0]]
+}
+// Client → HMI
+{
+  "status": "running|complete|stopped",
+  "active_piston": 0,
+  "direction": "extend|retract",
+  "remaining_ms": 850,
+  "cycle_count": 3,
+  "latching": true,
+  "message": "Cycle started."
+}</pre>
+        </div>
+        <div class="card">
+          <h2>Fields</h2>
+          <ul>
+            <li><strong>type</strong>: Start / Single / Stop command.</li>
+            <li><strong>latched</strong>: Auto-restart when a cycle completes.</li>
+            <li><strong>durations</strong>: Extend/retract per piston (seconds).</li>
+            <li><strong>remaining_ms</strong>: Time left in the active stage.</li>
+            <li><strong>cycle_count</strong>: Completed cycles.</li>
+            <li><strong>message</strong>: Optional info text.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="slide">
+        <div>
+          <h1>Runtime flow</h1>
+          <p>HMI writes a command, client reads and executes; each step is written back to the bus.</p>
+          <div class="card">
+            <ul>
+              <li><strong>1. Command</strong>: HMI collects durations, writes <span class="inline-code">write_master_command</span>.</li>
+              <li><strong>2. Execution</strong>: Client steps through <span class="inline-code">extend</span> / <span class="inline-code">retract</span> stages (ms resolution).</li>
+              <li><strong>3. State</strong>: Publishes with <span class="inline-code">write_slave_state</span> (active piston, remaining, latch, message).</li>
+              <li><strong>4. Latch</strong>: If <span class="inline-code">latched=true</span>, waits 0.5 s and restarts.</li>
+              <li><strong>5. Visualization</strong>: Tkinter signal graph or Streamlit panel tracks live signals.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Threading / timing</h2>
+          <ul>
+            <li><strong>Client loop</strong>: 10 ms cadence to read commands and advance the sequence.</li>
+            <li><strong>HMI</strong>: Tkinter <span class="inline-code">after(100ms)</span> or Streamlit page refresh.</li>
+            <li><strong>Fake bus</strong>: <span class="inline-code">threading.Lock</span>-protected mailbox.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="slide">
+        <div>
+          <h1>Interfaces & logging</h1>
+          <p>Two HMI options share the same bus and client.</p>
+          <ul>
+            <li><strong>Tkinter</strong>: Start/Stop/Single buttons, duration spinboxes, latch indicator, signal graph.</li>
+            <li><strong>Streamlit</strong>: Web form, live status panel, side-by-side server/client logs with auto refresh.</li>
+            <li><strong>LogBuffer</strong>: Thread-safe buffer; pass <span class="inline-code">logger=LogBuffer()</span> to collect client messages.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Demo commands</h2>
+          <pre>$ python3 main.py              # Tkinter HMI + client
+$ streamlit run streamlit_app.py  # Web HMI + client</pre>
+          <p style="margin-top:10px;">Both HMIs share the same Fake EtherCAT bus object; commands and states flow through the same API.</p>
+        </div>
+      </div>
+
+      <div class="slide">
+        <div>
+          <h1>Panel demo & example flow</h1>
+          <div class="demo-panel">
+            <div>
+              <div class="badge">HMI buttons (click to animate)</div>
+              <div class="demo-buttons">
+                <button class="pulse" id="demo-start">Start (Latch)</button>
+                <button class="pulse" id="demo-stop">Stop</button>
+                <button class="pulse" id="demo-single">Single Cycle</button>
+              </div>
+              <p style="margin-top:10px;">Buttons emit commands onto the bus; the client processes them in its 10 ms loop.</p>
+            </div>
+            <div>
+              <div class="badge">What Python does</div>
+              <div class="code-box" id="codeBox">Click a button to see the matching Python call.</div>
+            </div>
+          </div>
+          <h2 style="margin-top:16px;">Example scenario</h2>
+          <ul>
+            <li><strong>Set durations</strong> (extend/retract per piston).</li>
+            <li><strong>Start (Latch)</strong> to keep cycling automatically.</li>
+            <li><strong>Observe</strong> active piston, direction, remaining time; follow the logs.</li>
+            <li><strong>Stop</strong> to halt or <strong>Single Cycle</strong> for one run without latching.</li>
+          </ul>
+          <p>Advance slides with arrows or buttons; open the 3D animation to visualize motion.</p>
+        </div>
+        <div class="card">
+          <h2>Source files</h2>
+          <ul>
+            <li><strong>main.py</strong>: Tkinter HMI (server)</li>
+            <li><strong>piston_client.py</strong>: Client logic and sequence</li>
+            <li><strong>ethercat_bus.py</strong>: Fake EtherCAT bus</li>
+            <li><strong>streamlit_app.py</strong>: Web HMI</li>
+            <li><strong>log_buffer.py</strong>: Log buffer</li>
+            <li><strong>interactive-3d.html</strong>: Three.js visualization</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="slide">
+        <div>
+          <h1>Piston sequencing & timing</h1>
+          <p>Each piston runs extend then retract; the client builds a flat list of stages and steps through it.</p>
+          <pre># piston_client.py
+sequence = []
+for idx, (ext, ret) in enumerate(durations):
+    sequence.append(Stage(idx, "extend", int(ext * 1000)))
+    sequence.append(Stage(idx, "retract", int(ret * 1000)))
+
+elapsed_ms = (now - stage_started_at) * 1000
+if elapsed_ms >= max(stage.duration_ms, 50):
+    stage_index += 1
+    publish_state(status="running",
+                  direction=next_stage.action,
+                  active_piston=next_stage.piston_index,
+                  remaining_ms=next_stage.duration_ms)</pre>
+        </div>
+        <div class="card">
+          <h2>Master vs slave behavior</h2>
+          <ul>
+            <li><strong>Master (HMI)</strong>: stateless UI; writes commands on click; polls state to update widgets.</li>
+            <li><strong>Slave (client)</strong>: owns latch flag, running flag, stage_index, cycle_count.</li>
+            <li><strong>Latch</strong>: if true, waits 0.5s after completion and restarts automatically.</li>
+            <li><strong>Validation</strong>: durations sanitized (min 0.05s), empty sequence publishes stopped state.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="slide">
+        <div>
+          <h1>Backend call stack (Python)</h1>
+          <p>From HMI click to piston motion with the Fake EtherCAT bus in between.</p>
+          <pre>HMI button -> _collect_durations()
+           -> bus.write_master_command()
+Client loop -> pop_slave_command()
+           -> _apply_durations() -> _build_sequence()
+           -> _start_cycle() -> publish_state("running")
+Process cycle -> stage advance -> publish_state(...)
+HMI poll -> read_slave_state() -> update UI / logs</pre>
+        </div>
+        <div class="card">
+          <h2>Files to inspect</h2>
+          <ul>
+            <li><strong>piston_client.py</strong>: <code>PistonClient._loop</code>, <code>_process_cycle</code>, <code>_publish_state</code></li>
+            <li><strong>main.py</strong>: Tkinter UI handlers calling <code>write_master_command</code></li>
+            <li><strong>streamlit_app.py</strong>: Web HMI, auto-refresh, log viewer</li>
+            <li><strong>ethercat_bus.py</strong>: Fake EtherCAT mailbox</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn secondary" id="prev">Previous</button>
+      <div class="progress"><div id="progress-bar"></div></div>
+      <button class="btn" id="next">Next</button>
+    </div>
+  </div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const progress = document.getElementById('progress-bar');
+    let index = 0;
+
+    const setSlide = (i) => {
+      slides.forEach((s, idx) => s.classList.toggle('active', idx === i));
+      index = i;
+      const pct = ((i + 1) / slides.length) * 100;
+      progress.style.width = pct + '%';
+    };
+
+    const next = () => setSlide((index + 1) % slides.length);
+    const prev = () => setSlide((index - 1 + slides.length) % slides.length);
+
+    document.getElementById('next').addEventListener('click', next);
+    document.getElementById('prev').addEventListener('click', prev);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') next();
+      if (e.key === 'ArrowLeft') prev();
+    });
+
+    // Demo panel button actions
+    const codeBox = document.getElementById('codeBox');
+    const demoButtons = [
+      { id: 'demo-start', text: `bus.write_master_command("piston-client", {\n  "type": "start", "latched": true,\n  "durations": durations\n})\n# client sets latched=True, starts sequence`, },
+      { id: 'demo-stop', text: `bus.write_master_command("piston-client", {"type": "stop"})\n# client clears latch, stops running, publishes stopped state`, },
+      { id: 'demo-single', text: `bus.write_master_command("piston-client", {\n  "type": "single", "durations": durations\n})\n# client runs one cycle with latched=False`, },
+    ];
+    demoButtons.forEach((cfg) => {
+      const el = document.getElementById(cfg.id);
+      el.addEventListener('click', () => {
+        demoButtons.forEach(({ id }) => document.getElementById(id).classList.remove('active'));
+        el.classList.add('active');
+        codeBox.textContent = cfg.text;
+      });
+    });
+
+    setSlide(0);
+  </script>
+</body>
+</html>

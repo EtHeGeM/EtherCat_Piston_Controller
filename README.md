@@ -1,41 +1,75 @@
-# Hidrolik Piston PLC / HMI (EtherCAT)
+# Hydraulic Piston PLC / HMI (EtherCAT-style)
 
-Üç hidrolik piston için Python/Tkinter ile hazırlanmış örnek PLC simülasyonu. Mimari server (HMI/master) ve client (piston kontrolü) olarak ayrıldı; aradaki haberleşme EtherCAT düşünülerek Fake EtherCAT Bus veya pysoem üzerinden kurulabilir.
+Three-piston hydraulic simulation with Python. HMI (master) and piston client (slave) share commands/states over a Fake EtherCAT bus; optional Streamlit web UI and animated presentations are included. All Python code is under `app/`.
 
-## Özellikler
-- 3 piston, her biri için ayrı uzatma ve geri çekme süre (saniye) ayarı
-- Start (Latch) ve Stop; latch açıkken döngü otomatik tekrar eder
-- Latching olmadan tek döngü komutu
-- EtherCAT master (HMI) -> slave (piston client) komut akışı, durum geri bildirimi
-- Varsayılan süreleri geri yükleme, siyah log alanı ile izleme
+## Features
+- 3 pistons with separate extend/retract duration inputs (seconds)
+- Start (latched) and Stop; latched mode auto-restarts after each cycle
+- Single Cycle without latching
+- Fake EtherCAT bus (thread-safe mailbox) or pysoem placeholder for real EtherCAT
+- Tkinter HMI with signal monitor; Streamlit HMI with server/client logs
+- Animated web presentation and 3D Three.js visualization
 
-## Kurulum
+## Setup
 ```bash
-# pysoem gerçek EtherCAT master denemeleri için (opsiyonel); Fake bus için şart değil
+python app/run.py  # auto-creates .venv, installs requirements, starts Streamlit HMI
+```
+Options:
+```bash
+python app/run.py --mode streamlit --port 8501  # Web HMI
+python app/run.py --mode tk                     # Tkinter HMI
+python app/run.py --mode web --port 3000        # Serve presentation/3D static pages
+python app/run.py --mode client                  # Headless piston client only
+python app/run.py --skip-install                 # Skip pip install
+```
+
+If you prefer manual install:
+```bash
+python -m venv .venv
+source .venv/bin/activate   # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 ```
 
-## Çalıştırma (demo/fake EtherCAT)
-- Tek komutla HMI (server) + piston client (slave) aynı proses içinde başlatılır:
-  ```bash
-  python3 main.py
-  ```
-- HMI açıldığında client otomatik devreye girer ve EtherCAT bus üzerinden komutları dinler.
-- `piston_client.py` client kodunu ayrı olarak incelemek/çalıştırmak için kullanılabilir; Fake bus in-memory olduğundan gerçek iletişim için aynı proses veya gerçek EtherCAT kurulumu gerekir.
+## Running HMIs
+- Tkinter: `python -m app.main`
+- Streamlit: `streamlit run app/streamlit_app.py`
 
-## Streamlit arayüzü
-- GUI yerine web tabanlı arayüz için:
-  ```bash
-  streamlit run streamlit_app.py
-  ```
-- Start/Stop/Tek döngü komutlarını ve piston sürelerini kontrol edebilir, server ve client loglarını aynı ekranda takip edebilirsiniz.
+## Static web / Node server
+- `npm install` (only generates lockfile; no deps)
+- `npm start` (serves `web/` at 0.0.0.0:3000)
+- Open:
+  - Presentation: `http://localhost:3000/presentation.html`
+  - Landing: `http://localhost:3000/index.html`
+  - 3D view: `http://localhost:3000/interactive-3d.html`
+  - Deep dive: `http://localhost:3000/tech-deep-dive.html`
 
-## Gerçek EtherCAT'e uyarlama
-- `ethercat_bus.create_bus(interface_name)` fonksiyonunda pysoem ekran kartı/master kurulumu eklenebilir. Arayüz adı verilerek gerçek master devreye alındığında HMI tarafı yine `create_bus()` ile aynı API üzerinden komut yazar/okur.
+## Architecture
+- **HMI (master)**: Tkinter or Streamlit UI. Collects durations, writes commands with `write_master_command`, polls state with `read_slave_state`.
+- **Client (slave)**: `PistonClient` reads commands, builds extend/retract sequence, publishes state (status, active piston, direction, remaining_ms, latch, cycle_count, message).
+- **Fake EtherCAT Bus**: in-memory, thread-safe mailbox in `ethercat_bus.py`.
+- **Logging**: `LogBuffer` for server/client messages (Streamlit); Tkinter Text for server log.
 
-## Kullanım Notları
-- `Start (Latch)`: latching kontaktörünü açar, EtherCAT üzerinden client'a süreler ve start komutu gönderir.
-- `Stop`: latching'i kapatır ve client'ı durdurur.
-- `Tek Döngü`: latch kullanmadan yalnızca bir çevrim çalıştırır.
-- Süreler saniye cinsindedir; 0.1–30 arası değerler girilebilir. Var olan değerleri değiştirip yeni komut göndererek anlık testler yapabilirsiniz.
-- HMI üzerindeki **Sinyal İzleyici** bölümünde start/stop pulse'ları, latch, running ve piston aktif sinyalleri (son 20 sn) canlı akış olarak gösterilir.
+## Command / State payloads
+Master → Slave:
+```json
+{ "type": "start", "latched": true, "durations": [[1.5,1.0],[2.0,1.0],[2.5,1.0]] }
+{ "type": "single", "durations": [[...],[...],[...]] }
+{ "type": "stop" }
+```
+Slave → Master:
+```json
+{
+  "status": "running|complete|stopped",
+  "active_piston": 0,
+  "direction": "extend|retract",
+  "remaining_ms": 850,
+  "cycle_count": 3,
+  "latching": true,
+  "message": "Cycle started."
+}
+```
+
+## Notes
+- Latch: when `latched=true`, client restarts 0.5s after completing the sequence.
+- Minimum stage time: 50 ms safeguard; durations sanitized to ≥0.05 s.
+- Fake bus keeps commands/states per `slave_id` and clones state on read to avoid mutation.

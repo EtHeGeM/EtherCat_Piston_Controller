@@ -1,0 +1,28 @@
+# Python virtualenv
+.venv/
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+
+# Node
+node_modules/
+web/vendor/three.module.js
+web/vendor/OrbitControls.js
+npm-debug.log*
+
+# Streamlit
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.iml
