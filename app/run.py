@@ -4,9 +4,9 @@ Installs Python dependencies, then can start Streamlit HMI (includes client),
 Tkinter HMI, headless client, or static web server.
 
 Usage examples:
-  python run.py                 # install deps + Streamlit HMI (default, single port)
-  python run.py --mode streamlit
+  python run.py                 # install deps + Tkinter HMI (default)
   python run.py --mode tk
+  python run.py --mode streamlit
   python run.py --mode web --port 3000
   python run.py --mode client   # headless piston client only
 """
@@ -22,6 +22,11 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    # Ensure package imports (app.*) work regardless of entrypoint style.
+    sys.path.insert(0, str(ROOT))
 
 
 def ensure_venv() -> str:
@@ -59,7 +64,7 @@ def install_deps() -> None:
 
 
 def run_tkinter() -> None:
-    from main import main as tk_main
+    from app.main import main as tk_main
 
     tk_main()
 
@@ -83,8 +88,8 @@ def run_streamlit(port: int) -> None:
 
 
 def run_client_only() -> None:
-    from ethercat_bus import create_bus
-    from piston_client import PistonClient
+    from app.ethercat_bus import create_bus
+    from app.piston_client import PistonClient
 
     bus = create_bus()
     PistonClient(bus)
@@ -118,8 +123,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--mode",
         choices=["all", "tk", "streamlit", "web", "client"],
-        default="all",
-        help="all (install deps + Streamlit HMI), tk, streamlit, web (static), client (headless)",
+        default="tk",
+        help="default tk (Tkinter HMI), streamlit, web (static), client (headless), all (install + Streamlit)",
     )
     parser.add_argument("--port", type=int, default=3000, help="Port for streamlit or web server")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host bind address for web server")

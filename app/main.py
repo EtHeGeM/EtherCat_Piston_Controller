@@ -4,6 +4,7 @@ from typing import List, Tuple
 import time
 
 from .ethercat_bus import create_bus
+from .log_buffer import LogBuffer
 from .piston_client import DEFAULT_DURATIONS, PistonClient
 
 
@@ -95,12 +96,16 @@ class HMIServer:
         self.root.title("Hydraulic Piston HMI (EtherCAT Server)")
         self.bus = create_bus()
         self.slave_id = "piston-client"
-        self.client = PistonClient(self.bus, slave_id=self.slave_id)
+        self.server_log = LogBuffer()
+        self.client_log = LogBuffer()
+        self.client = PistonClient(self.bus, slave_id=self.slave_id, logger=self.client_log)
 
         self.pistons: List[dict] = []
         self.last_status = None
         self.last_timestamp = 0.0
         self._pulse_flags = {"start_cmd": False, "stop_cmd": False}
+        self._server_log_cursor = 0
+        self._client_log_cursor = 0
 
         self._build_ui()
         self._reset_states()
@@ -233,8 +238,25 @@ class HMIServer:
         )
         status_label.pack(fill="x", pady=(0, 4))
 
-        self.log_box = tk.Text(root, height=8, state="disabled", bg="#0f172a", fg="#e2e8f0")
-        self.log_box.pack(fill="both", expand=True, padx=4, pady=4)
+        # Logs panel (server + client)
+        log_frame = ttk.LabelFrame(root, text="Logs")
+        log_frame.pack(fill="both", expand=True, padx=4, pady=4)
+
+        server_col = ttk.Frame(log_frame)
+        server_col.pack(side="left", fill="both", expand=True, padx=(0, 4), pady=4)
+        ttk.Label(server_col, text="Server (HMI)", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        self.server_log_box = tk.Text(
+            server_col, height=10, state="disabled", bg="#0f172a", fg="#e2e8f0"
+        )
+        self.server_log_box.pack(fill="both", expand=True)
+
+        client_col = ttk.Frame(log_frame)
+        client_col.pack(side="left", fill="both", expand=True, padx=(4, 0), pady=4)
+        ttk.Label(client_col, text="Client (Piston)", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        self.client_log_box = tk.Text(
+            client_col, height=10, state="disabled", bg="#0f172a", fg="#e2e8f0"
+        )
+        self.client_log_box.pack(fill="both", expand=True)
 
         self.signal_graph = SignalGraph(
             root,
@@ -259,10 +281,8 @@ class HMIServer:
         return result
 
     def _log(self, message: str) -> None:
-        self.log_box.configure(state="normal")
-        self.log_box.insert("end", f"{message}\n")
-        self.log_box.see("end")
-        self.log_box.configure(state="disabled")
+        self.server_log.add(message)
+        self._refresh_logs()
 
     def _reset_times(self) -> None:
         for idx, piston in enumerate(self.pistons):
@@ -350,6 +370,7 @@ class HMIServer:
         state = self.bus.read_slave_state(self.slave_id)
         if state and state.get("timestamp", 0) >= self.last_timestamp:
             self._apply_state_to_ui(state)
+        self._refresh_logs()
         self.root.after(100, self._poll_bus)
 
     def _update_signal_graph(self, active: int | None, latch: bool, status: str | None) -> None:
@@ -367,6 +388,22 @@ class HMIServer:
         # Pulse cleanup
         self._pulse_flags["start_cmd"] = False
         self._pulse_flags["stop_cmd"] = False
+
+    def _refresh_logs(self) -> None:
+        self._append_buffer(self.server_log_box, self.server_log, "_server_log_cursor")
+        self._append_buffer(self.client_log_box, self.client_log, "_client_log_cursor")
+
+    def _append_buffer(self, widget: tk.Text, buffer: LogBuffer, cursor_attr: str) -> None:
+        lines = buffer.get_lines()
+        cursor = getattr(self, cursor_attr)
+        if cursor >= len(lines):
+            return
+        new_lines = lines[cursor:]
+        widget.configure(state="normal")
+        widget.insert("end", "\n".join(new_lines) + "\n")
+        widget.see("end")
+        widget.configure(state="disabled")
+        setattr(self, cursor_attr, len(lines))
 
     @staticmethod
     def _format_remaining(remaining_ms: int | None) -> str:
