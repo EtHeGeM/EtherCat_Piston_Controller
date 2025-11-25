@@ -65,8 +65,21 @@ def run_tkinter() -> None:
 
 
 def run_streamlit(port: int) -> None:
-    cmd = [sys.executable, "-m", "streamlit", "run", "streamlit_app.py", "--server.port", str(port)]
-    subprocess.run(cmd, check=True)
+    app_dir = Path(__file__).resolve().parent
+    app_path = app_dir / "streamlit_app.py"
+    if not app_path.exists():
+        raise FileNotFoundError(f"Streamlit app not found at {app_path}")
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.port",
+        str(port),
+    ]
+    subprocess.run(cmd, check=True, cwd=str(app_dir))
 
 
 def run_client_only() -> None:

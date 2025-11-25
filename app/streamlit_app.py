@@ -3,11 +3,19 @@ from __future__ import annotations
 import time
 from typing import List, Tuple
 
+import sys
+from pathlib import Path
+
 import streamlit as st
 
-from .ethercat_bus import create_bus
-from .log_buffer import LogBuffer
-from .piston_client import DEFAULT_DURATIONS, PistonClient
+APP_ROOT = Path(__file__).resolve().parent
+if str(APP_ROOT) not in sys.path:
+    # Ensure local imports work when Streamlit runs the script directly.
+    sys.path.insert(0, str(APP_ROOT))
+
+from ethercat_bus import create_bus
+from log_buffer import LogBuffer
+from piston_client import DEFAULT_DURATIONS, PistonClient
 
 SLAVE_ID = "piston-client"
 REFRESH_SECONDS = 0.5

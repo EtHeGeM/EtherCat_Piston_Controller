@@ -28,12 +28,12 @@
                   linear-gradient(135deg, var(--bg), var(--bg-2));
       color: var(--text);
       min-height: 100vh;
-      overflow: hidden;
+      overflow-x: hidden;
       padding: 20px;
     }
     .frame {
       max-width: 1200px;
-      height: calc(100vh - 40px);
+      min-height: calc(100vh - 40px);
       margin: 0 auto;
       display: grid;
       grid-template-rows: auto 1fr auto;
@@ -341,9 +341,18 @@
     }
     @media (max-width: 860px) {
       body { padding: 12px; }
-      .frame { height: auto; }
-      .deck { min-height: 700px; }
+      .frame { min-height: auto; }
+      .deck { min-height: 720px; }
       .slide { position: relative; }
+      .scene { height: 260px; }
+      .nav { flex-direction: column; align-items: stretch; gap: 8px; }
+      .progress { width: 100%; }
+      .btn { width: 100%; text-align: center; }
+    }
+    @media (max-width: 580px) {
+      .slide { grid-template-columns: 1fr; padding: 20px; }
+      header { flex-wrap: wrap; }
+      .card { padding: 12px 14px; }
     }
   </style>
 </head>

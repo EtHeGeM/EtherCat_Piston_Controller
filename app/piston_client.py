@@ -3,8 +3,20 @@ import time
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from .ethercat_bus import FakeEtherCATBus, create_bus
-from .log_buffer import LogBuffer
+import sys
+from pathlib import Path
+
+# Allow imports to work when executed as a script (no package context).
+APP_ROOT = Path(__file__).resolve().parent
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+
+try:  # Prefer package-relative imports when available
+    from .ethercat_bus import FakeEtherCATBus, create_bus
+    from .log_buffer import LogBuffer
+except ImportError:
+    from ethercat_bus import FakeEtherCATBus, create_bus
+    from log_buffer import LogBuffer
 
 
 @dataclass

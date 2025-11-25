@@ -85,7 +85,14 @@
       background: transparent;
       color: var(--text);
     }
-    canvas { display: block; }
+    canvas {
+      display: block;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+    }
     #info {
       position: fixed;
       left: 16px;
@@ -99,6 +106,62 @@
       backdrop-filter: blur(8px);
       max-width: 340px;
       line-height: 1.5;
+      z-index: 10;
+    }
+
+    @media (max-width: 780px) {
+      body {
+        overflow: auto;
+      }
+      header {
+        position: relative;
+        transform: none;
+        margin: 10px 12px 6px;
+        flex-direction: column;
+        align-items: flex-start;
+        z-index: 20;
+      }
+      header .chip { font-size: 12px; padding: 6px 10px; }
+      .panel,
+      .panel.sample {
+        position: relative;
+        width: calc(100% - 24px);
+        margin: 8px 12px 0;
+        z-index: 20;
+        padding: 10px 12px;
+        border-radius: 12px;
+      }
+      .panel h3,
+      .panel h4 { margin-bottom: 4px; }
+      .panel p { font-size: 13px; }
+      .btn {
+        width: 100%;
+        text-align: center;
+        padding: 8px 10px;
+        margin-top: 6px;
+        font-size: 14px;
+      }
+      .btn + .btn { margin-top: 4px; }
+      .panel.sample {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 8px;
+      }
+      .panel.sample .badge { grid-column: 1 / -1; }
+      .panel.sample #durationList { font-size: 12px; }
+      #statusText { font-size: 14px; }
+      .chip { font-size: 12px; padding: 6px 10px; }
+      .panel .btn.secondary { margin-left: 0; }
+      .panel > div button + button { margin-left: 0; }
+      .panel > div { display: grid; gap: 6px; }
+      .panel p { margin-bottom: 4px; }
+      #info {
+        position: relative;
+        margin: 10px 12px 14px;
+        max-width: none;
+        z-index: 20;
+        font-size: 13px;
+      }
     }
   </style>
 </head>
@@ -147,6 +210,15 @@
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
+
+    const handleResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    };
+    window.addEventListener("resize", handleResize);
 
     const hemiLight = new THREE.HemisphereLight(0x7ef7ff, 0x0f1627, 0.6);
     scene.add(hemiLight);
